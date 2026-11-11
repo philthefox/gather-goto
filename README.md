@@ -139,6 +139,13 @@ also open the microphone and therefore trigger the move; `END_AFTER` bridges sho
 - Occupancy is judged by where connected avatars stand right now, not by desk assignment.
 - Only the current floor is handled.
 
+## Contributing
+
+Contributions are welcome. Open an issue for ideas and bugs, or send a pull request. Useful
+places to start: support for other Gather versions, more target types, and triggers for other
+call apps besides Teams. Please keep office layouts and people's names out of commits
+(`picker/data.json` is ignored for that reason).
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
