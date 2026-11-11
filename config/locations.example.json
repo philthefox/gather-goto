@@ -1,0 +1,11 @@
+{
+  "koi":           { "area": "Koi Pond" },
+  "zen":           { "area": "Zen Space" },
+  "lobby":         { "area": "Lobby Couches" },
+  "customer":      { "free": "Kunde" },
+  "customer call": { "free": "Kunde" },
+  "kunde":         { "free": "Kunde" },
+  "home":          { "tile": { "x": 83, "y": 69 } },
+  "afk":           { "tiles": [[87,62],[88,62],[89,62]], "seats": true, "spacing": 3,
+                     "_comment": "example only: paste the real tile list from the Spot Picker here" }
+}

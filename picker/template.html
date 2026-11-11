@@ -1,0 +1,311 @@
+<title>Gather Spot Picker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a floor plan canvas with a narrow control rail beside it; rail stacks under the plan on phones. */
+:root{
+  --bg:#f3f1ec; --panel:#ffffff; --fg:#1f2a2e; --muted:#67737a; --line:#d8d3ca;
+  --accent:#0f766e; --accent-ink:#ffffff; --sel:#d97706;
+  --a-meeting:rgba(79,70,229,.28); --a-desk:rgba(217,119,6,.25); --a-common:rgba(22,163,74,.26); --a-team:rgba(147,51,234,.14); --a-lobby:rgba(14,116,144,.26); --a-public:rgba(0,0,0,.03);
+  --wall:#4b5563; --obj:rgba(31,42,46,.16); --seat:#b45309; --desk:#92400e;
+  --font:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#15191c; --panel:#1e2428; --fg:#e7e4de; --muted:#9aa4aa; --line:#343c42; --accent:#2dd4bf; --accent-ink:#0b2a27; --sel:#fbbf24;
+  --a-meeting:rgba(129,140,248,.32); --a-desk:rgba(251,191,36,.26); --a-common:rgba(74,222,128,.26); --a-team:rgba(192,132,252,.16); --a-lobby:rgba(34,211,238,.26); --a-public:rgba(255,255,255,.04);
+  --wall:#c7ccd1; --obj:rgba(231,228,222,.18); --seat:#fcd34d; --desk:#fbbf24; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#15191c; --panel:#1e2428; --fg:#e7e4de; --muted:#9aa4aa; --line:#343c42; --accent:#2dd4bf; --accent-ink:#0b2a27; --sel:#fbbf24;
+  --a-meeting:rgba(129,140,248,.32); --a-desk:rgba(251,191,36,.26); --a-common:rgba(74,222,128,.26); --a-team:rgba(192,132,252,.16); --a-lobby:rgba(34,211,238,.26); --a-public:rgba(255,255,255,.04);
+  --wall:#c7ccd1; --obj:rgba(231,228,222,.18); --seat:#fcd34d; --desk:#fbbf24; color-scheme:dark }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font);padding-block:16px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:baseline;margin-bottom:12px}
+h1{font-size:20px;font-weight:600;margin:0;text-wrap:balance}
+header p{margin:0;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);margin-left:auto}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:12px;height:12px;border-radius:2px;display:inline-block;border:1px solid var(--line)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media (max-width:820px){main{grid-template-columns:minmax(0,1fr)}}
+.plan{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;min-width:0}
+.toolbar{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.toolbar .hint{color:var(--muted);font-size:12px;margin-left:auto;font-family:var(--mono)}
+button{font:inherit;font-size:13px;padding:6px 10px;border-radius:5px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500}
+button.ghost{border-color:transparent;color:var(--muted);padding:4px 6px}
+button:disabled{opacity:.5;cursor:default}
+.scroller{overflow:auto;max-height:78vh;border-radius:4px;background:var(--bg)}
+canvas{display:block;image-rendering:pixelated;cursor:crosshair;user-select:none;-webkit-user-select:none}
+button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.rail{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}
+.card h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px}
+.kv b{font-weight:500;color:var(--muted)}
+.mono{font-family:var(--mono)}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input[type=text]{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg)}
+input[type=text]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+ul.presets{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+ul.presets li{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px}
+ul.presets li small{grid-column:1;color:var(--muted);font-family:var(--mono);font-size:11px}
+ul.presets li button{grid-row:1/3}
+.empty{color:var(--muted);font-size:13px}
+pre{margin:0;font:12px/1.4 var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:8px;overflow:auto;max-height:180px;white-space:pre}
+.status{font-size:12px;color:var(--muted);min-height:1.2em;margin-top:6px}
+</style>
+
+<header>
+  <h1 id="pageTitle">Gather Spot Picker</h1>
+  <p>Click tiles to toggle them, drag to select a rectangle, then name and save. One tile is a spot, several tiles are a custom area the walk picks a free tile from.</p>
+  <div class="legend">
+    <span><i style="background:var(--a-meeting)"></i>Meeting room</span>
+    <span><i style="background:var(--a-common)"></i>Common</span>
+    <span><i style="background:var(--a-desk)"></i>Desk</span>
+    <span><i style="background:var(--a-team)"></i>Team</span>
+    <span><i style="background:var(--a-lobby)"></i>Lobby</span>
+    <span><i style="background:var(--wall)"></i>Blocked</span>
+  </div>
+</header>
+
+<main>
+  <section class="plan">
+    <div class="toolbar">
+      <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+      <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+      <button id="fit" type="button">Fit</button>
+      <button id="center" type="button">Go to me</button>
+      <button id="dragMode" type="button" aria-pressed="true" title="Switch between dragging to select tiles and dragging to scroll the plan">Drag selects</button>
+      <span class="hint" id="hover">hover for coordinates</span>
+    </div>
+    <div class="scroller" id="scroller"><canvas id="map" role="img" aria-label="Floor plan"></canvas></div>
+  </section>
+
+  <aside class="rail">
+    <div class="card">
+      <h2>Selection</h2>
+      <div class="kv" id="selInfo"><b>Tiles</b><span class="mono">none yet</span></div>
+      <label for="presetName">Preset name</label>
+      <input type="text" id="presetName" placeholder="afk" autocomplete="off" spellcheck="false">
+      <div class="actions">
+        <button class="primary" id="saveTile" type="button" disabled>Save selection</button>
+        <button id="saveArea" type="button" disabled>Save area</button>
+        <button class="ghost" id="clearSel" type="button" disabled>Clear</button>
+      </div>
+      <p class="empty" style="margin:10px 0 0">Drag with <span class="mono">⌥</span> held to remove tiles. On a touch screen, tap tiles, or switch “Drag scrolls” to “Drag selects”.</p>
+      <div class="status" id="status"></div>
+    </div>
+    <div class="card">
+      <h2>Saved spots</h2>
+      <ul class="presets" id="presetList"></ul>
+      <p class="empty" id="presetEmpty">Nothing saved yet. The first one you save shows up here and on the plan.</p>
+    </div>
+    <div class="card">
+      <h2>locations.json snippet</h2>
+      <pre id="snippet">{}</pre>
+      <div class="actions"><button id="copy" type="button">Copy</button></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const DATA = __DATA__;
+const T = {MeetingRoom:"--a-meeting",Desk:"--a-desk",Common:"--a-common",Team:"--a-team",Lobby:"--a-lobby",Public:"--a-public"};
+const $ = (id) => document.getElementById(id);
+const cv = $("map"), ctx = cv.getContext("2d"), scroller = $("scroller");
+const base = document.createElement("canvas"), bctx = base.getContext("2d");   // static layer: plan + saved spots
+let tile = 8, sel = new Set(), drag = null, presets = {}, db = null, storeReady = false;
+let dragSelect = !matchMedia("(pointer: coarse)").matches;   // on touch screens a drag scrolls unless switched on
+const k2 = (x,y) => x+","+y, fromKey = (k) => k.split(",").map(Number);
+
+// theme colours are read once per theme, not per shape
+let C = null;
+const TOKENS = ["--panel","--fg","--accent","--sel","--wall","--obj","--seat","--desk","--font", ...Object.values(T)];
+const colors = () => { if (!C) { const s = getComputedStyle(document.documentElement); C = Object.fromEntries(TOKENS.map(n => [n, s.getPropertyValue(n).trim()])); } return C; };
+
+// area lookup per tile
+const areaAt = new Map(), publicAt = new Map();
+for (const a of DATA.areas) for (const [x,y] of a.tiles) (a.type === "Public" ? publicAt : areaAt).set(k2(x,y), a);
+const areaNameAt = (x,y) => (areaAt.get(k2(x,y)) ?? publicAt.get(k2(x,y)))?.name ?? "outside";
+const bbox = (tiles) => { let x0=1e9,y0=1e9,x1=-1,y1=-1; for (const [x,y] of tiles){ if(x<x0)x0=x; if(y<y0)y0=y; if(x>x1)x1=x; if(y>y1)y1=y;} return {x0,y0,x1,y1}; };
+const boxes = DATA.areas.map(a => ({a, ...bbox(a.tiles)}));
+const paintOrder = [...DATA.areas].sort((p,q) => (p.type==="Public"?-1:0) - (q.type==="Public"?-1:0));
+const dprOf = () => Math.min(window.devicePixelRatio || 1, 2);
+
+function pin(g,x,y,color){ const c = colors(), cx=(x+.5)*tile, cy=(y+.5)*tile, r=Math.max(3,tile*.45); g.fillStyle=color; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill(); g.strokeStyle=c["--panel"]; g.lineWidth=1.5; g.stroke(); }
+
+// The expensive part: only when zoom, theme or the saved spots change.
+function renderBase() {
+  const c = colors(), g = bctx, W = DATA.dims.width, H = DATA.dims.height, dpr = dprOf();
+  base.width = W*tile*dpr; base.height = H*tile*dpr; g.setTransform(dpr,0,0,dpr,0,0);
+  g.fillStyle = c["--panel"]; g.fillRect(0,0,W*tile,H*tile);
+  for (const a of paintOrder) { g.fillStyle = c[T[a.type] || "--a-public"]; for (const [x,y] of a.tiles) g.fillRect(x*tile, y*tile, tile, tile); }
+  if (tile >= 6) { g.strokeStyle = "rgba(127,127,127,.12)"; g.lineWidth = 1; g.beginPath();
+    for (let x=0;x<=W;x+=5){g.moveTo(x*tile+.5,0);g.lineTo(x*tile+.5,H*tile);} for (let y=0;y<=H;y+=5){g.moveTo(0,y*tile+.5);g.lineTo(W*tile,y*tile+.5);} g.stroke(); }
+  for (const [x,y,w,h,k] of DATA.objects) {          // 0 other, 1 seat, 2 desk
+    if (k===1) { g.fillStyle = c["--seat"]; g.beginPath(); g.arc((x+w/2)*tile,(y+h/2)*tile,Math.max(1.5,tile*0.28),0,Math.PI*2); g.fill(); }
+    else if (k===2) { g.fillStyle = c["--desk"]; g.globalAlpha=.55; g.fillRect(x*tile,y*tile,w*tile,h*tile); g.globalAlpha=1; }
+    else { g.fillStyle = c["--obj"]; g.fillRect(x*tile,y*tile,w*tile,h*tile); }
+  }
+  g.fillStyle = c["--wall"];
+  DATA.collisions.forEach((row,y) => { for (let x=0;x<row.length;x++) if (row[x]==="#") g.fillRect(x*tile,y*tile,tile,tile); });
+  g.textAlign = "center";
+  if (tile >= 5) {
+    g.font = `500 ${Math.max(9, tile*1.3)}px ${c["--font"]}`; g.textBaseline="middle";
+    for (const b of boxes) {
+      if (b.a.type==="Public" || b.a.name.startsWith("Unclaimed") || b.a.name.startsWith("Unnamed")) continue;
+      if ((b.x1-b.x0+1)*tile < 28) continue;
+      const cx = (b.x0+b.x1+1)/2*tile, cy = (b.y0+b.y1+1)/2*tile, label = b.a.name.replace(/'s desk$/,"").replace(/^👥 /,"");
+      g.lineWidth = 3; g.strokeStyle = c["--panel"]; g.strokeText(label, cx, cy); g.fillStyle = c["--fg"]; g.fillText(label, cx, cy);
+    }
+  }
+  g.font = `500 ${Math.max(9, tile*1.2)}px ${c["--font"]}`; g.textBaseline="bottom";
+  for (const p of Object.values(presets)) {
+    if (Array.isArray(p.tiles) && p.tiles.length) {
+      g.fillStyle = c["--accent"]; g.globalAlpha = .35;
+      for (const [x,y] of p.tiles) g.fillRect(x*tile, y*tile, tile, tile);
+      g.globalAlpha = 1; g.strokeStyle = c["--accent"]; g.lineWidth = 1.5;
+      for (const [x,y] of p.tiles) g.strokeRect(x*tile+.75, y*tile+.75, tile-1.5, tile-1.5);
+      const b = bbox(p.tiles); g.fillStyle = c["--accent"]; g.fillText(String(p.name), (b.x0+b.x1+1)/2*tile, b.y0*tile - 4);
+    } else if (p.x != null) { pin(g, p.x, p.y, c["--accent"]); g.fillStyle = c["--accent"]; g.fillText(String(p.name), (p.x+.5)*tile, p.y*tile - 4); }
+  }
+  pin(g, DATA.me.x, DATA.me.y, c["--sel"]); g.fillStyle = c["--sel"]; g.fillText("you", (DATA.me.x+.5)*tile, DATA.me.y*tile - 4);
+  draw();
+}
+// The cheap part: blit the plan, then selection and rubber band. Runs on every drag step.
+function draw() {
+  const c = colors(), W = DATA.dims.width, H = DATA.dims.height, dpr = dprOf();
+  if (cv.width !== base.width || cv.height !== base.height) { cv.width = base.width; cv.height = base.height; cv.style.width = W*tile+"px"; cv.style.height = H*tile+"px"; }
+  ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(base, 0, 0); ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.strokeStyle = c["--sel"]; ctx.fillStyle = c["--sel"]; ctx.lineWidth = 2;
+  ctx.globalAlpha = .3; for (const k of sel) { const [x,y] = fromKey(k); ctx.fillRect(x*tile, y*tile, tile, tile); }
+  ctx.globalAlpha = 1; for (const k of sel) { const [x,y] = fromKey(k); ctx.strokeRect(x*tile+1, y*tile+1, tile-2, tile-2); }
+  if (drag && drag.moved) { const r = dragRect(); ctx.setLineDash([4,3]); ctx.strokeRect(r.x0*tile+.5, r.y0*tile+.5, (r.x1-r.x0+1)*tile-1, (r.y1-r.y0+1)*tile-1); ctx.setLineDash([]); }
+}
+const dragRect = () => ({x0: Math.min(drag.a.x, drag.b.x), y0: Math.min(drag.a.y, drag.b.y), x1: Math.max(drag.a.x, drag.b.x), y1: Math.max(drag.a.y, drag.b.y)});
+
+// ---- pointer input
+const tileFromEvent = (e) => { const r = cv.getBoundingClientRect(); return {x: Math.floor((e.clientX-r.left)/tile), y: Math.floor((e.clientY-r.top)/tile)}; };
+const inBounds = (t) => t.x >= 0 && t.y >= 0 && t.x < DATA.dims.width && t.y < DATA.dims.height;
+const toggle = (t) => { const k = k2(t.x,t.y); sel.has(k) ? sel.delete(k) : sel.add(k); renderSel(); draw(); };
+function setDragSelect(on){ dragSelect = on; cv.style.touchAction = on ? "none" : "auto"; const b = $("dragMode"); b.setAttribute("aria-pressed", String(on)); b.textContent = on ? "Drag selects" : "Drag scrolls"; }
+$("dragMode").addEventListener("click", () => setDragSelect(!dragSelect));
+cv.addEventListener("pointerdown", (e) => { if (!dragSelect || e.button !== 0) return; const t = tileFromEvent(e); if (!inBounds(t)) return; drag = {a: t, b: t, moved: false, remove: e.altKey}; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", (e) => {
+  const t = tileFromEvent(e);
+  if (inBounds(t)) $("hover").textContent = `${t.x},${t.y} · ${areaNameAt(t.x,t.y)}` + (sel.size ? ` · ${sel.size} selected` : "");
+  if (drag) { const b = {x: Math.max(0, Math.min(DATA.dims.width-1, t.x)), y: Math.max(0, Math.min(DATA.dims.height-1, t.y))}; if (b.x !== drag.b.x || b.y !== drag.b.y) { drag.b = b; drag.moved = true; draw(); } }
+});
+cv.addEventListener("pointerup", () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.moved) { const r = {x0: Math.min(d.a.x,d.b.x), y0: Math.min(d.a.y,d.b.y), x1: Math.max(d.a.x,d.b.x), y1: Math.max(d.a.y,d.b.y)}; for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++) d.remove ? sel.delete(k2(x,y)) : sel.add(k2(x,y)); renderSel(); draw(); }
+  else toggle(d.a);
+});
+cv.addEventListener("click", (e) => { if (dragSelect) return; const t = tileFromEvent(e); if (inBounds(t)) toggle(t); });   // tap-to-toggle while drags scroll
+cv.addEventListener("pointercancel", () => { drag = null; draw(); });
+cv.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// ---- selection panel (text only ever goes in through textContent)
+const selTiles = () => [...sel].map(fromKey).sort((a,b) => a[1]-b[1] || a[0]-b[0]);
+function setInfo(rows){ const info = $("selInfo"); info.replaceChildren(); for (const [label, value, mono] of rows) { const b = document.createElement("b"); b.textContent = label; const s = document.createElement("span"); s.textContent = value; if (mono) s.className = "mono"; info.append(b, s); } }
+function updateButtons(){
+  const tiles = selTiles(), single = tiles.length === 1 ? areaAt.get(k2(tiles[0][0], tiles[0][1])) : null;
+  $("saveTile").disabled = !storeReady || !tiles.length;
+  $("saveArea").disabled = !storeReady || !single;
+  $("saveArea").textContent = single ? `Save area “${single.name}”` : "Save area";
+  $("clearSel").disabled = !tiles.length;
+}
+function renderSel(){
+  const tiles = selTiles(); updateButtons();
+  if (!tiles.length) return setInfo([["Tiles", "none yet", true]]);
+  const areas = [...new Set(tiles.map(([x,y]) => areaAt.get(k2(x,y))?.name).filter(Boolean))];
+  const blocked = tiles.filter(([x,y]) => DATA.collisions[y]?.[x] === "#").length, b = bbox(tiles);
+  const rows = [["Tiles", tiles.length === 1 ? `${b.x0}, ${b.y0}` : `${tiles.length} tiles · ${b.x0}–${b.x1} × ${b.y0}–${b.y1}`, true],
+                ["Area", areas.length ? areas.join(", ") : areaNameAt(tiles[0][0], tiles[0][1])]];
+  if (blocked) rows.push(["Note", `${blocked} blocked tile${blocked>1?"s":""} in the selection ${blocked>1?"are":"is"} skipped when walking`]);
+  setInfo(rows);
+}
+$("clearSel").addEventListener("click", () => { sel.clear(); renderSel(); draw(); });
+
+// ---- persistence: the shared store when available, otherwise this browser only
+const status = (m) => $("status").textContent = m;
+const key = (n) => String(n).trim().toLowerCase().replace(/[^a-z0-9äöüß _-]+/g,"").replace(/\s+/g," ").trim();
+const docId = (n) => key(n).replace(/[^a-z0-9_-]+/g, "-");                      // store ids allow no spaces or umlauts
+const readLocal = () => { try { return JSON.parse(localStorage.getItem("presets") || "{}") || {}; } catch { return {}; } };
+const writeLocal = (v) => { try { v ? localStorage.setItem("presets", JSON.stringify(v)) : localStorage.removeItem("presets"); } catch {} };
+function renderPresets(){
+  const ul = $("presetList"); ul.replaceChildren();
+  const list = Object.values(presets).sort((a,b) => String(a.name).localeCompare(String(b.name)));
+  $("presetEmpty").hidden = list.length > 0;
+  const out = {};
+  for (const p of list) {
+    const li = document.createElement("li");
+    const name = document.createElement("span"); name.textContent = p.name;
+    const sub = document.createElement("small"); sub.textContent = p.tiles ? `${p.tiles.length} tiles${p.area ? " · " + p.area : ""}` : p.x != null ? `tile ${p.x},${p.y}${p.area ? " · " + p.area : ""}` : `area ${p.area}`;
+    const del = document.createElement("button"); del.type="button"; del.className="ghost"; del.textContent="Remove"; del.addEventListener("click", () => remove(p.id));
+    li.append(name, del, sub); ul.appendChild(li);
+    out[key(p.name)] = p.tiles ? {tiles: p.tiles, seats: true, spacing: 3} : p.x != null ? {tile:{x:p.x,y:p.y}} : {area:p.area};   // lowercase keys: what gather-goto looks up
+  }
+  $("snippet").textContent = JSON.stringify(out, null, 1).replace(/\[\s+(-?\d+),\s+(-?\d+)\s+\]/g, "[$1,$2]");
+  renderBase();
+}
+async function save(doc){
+  if (!storeReady) return status("Still connecting to the saved spots. Try again in a moment.");
+  const id = docId(doc.name); if (!id) return status("Give the spot a name first.");
+  doc = {...doc, name: String(doc.name).trim(), savedAt: new Date().toISOString()};
+  if (db) { try { await db.collection("presets").doc(id).set(doc); status(`Saved “${doc.name}”.`); } catch (e) { status("Could not save: " + (e?.message || e?.code || e)); } }
+  else { presets[id] = {...doc, id}; writeLocal(presets); renderPresets(); status(`Saved “${doc.name}” in this browser only.`); }
+}
+async function remove(id){
+  if (db) { try { await db.collection("presets").doc(id).delete(); status("Removed."); } catch (e) { status("Could not remove: " + (e?.message || e?.code || e)); } }
+  else { delete presets[id]; writeLocal(presets); renderPresets(); }
+}
+$("saveTile").addEventListener("click", () => {
+  const tiles = selTiles(); if (!tiles.length) return;
+  const name = $("presetName").value || "afk", areaName = areaAt.get(k2(tiles[0][0], tiles[0][1]))?.name ?? null;
+  save(tiles.length === 1 ? {name, x: tiles[0][0], y: tiles[0][1], area: areaName} : {name, tiles, area: areaName});
+});
+$("saveArea").addEventListener("click", () => { const t = selTiles(); const a = t.length === 1 && areaAt.get(k2(t[0][0], t[0][1])); if (a) save({name: $("presetName").value || a.name, area: a.name}); });
+$("copy").addEventListener("click", async (e) => { const t = $("snippet").textContent; try { await navigator.clipboard.writeText(t); e.target.textContent = "Copied"; } catch { const r = document.createRange(); r.selectNodeContents($("snippet")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); e.target.textContent = "Select + ⌘C"; } setTimeout(() => e.target.textContent = "Copy", 1500); });
+
+// ---- zoom and theme
+const setTile = (t) => { tile = Math.max(3, Math.min(24, t)); renderBase(); };
+$("zoomIn").addEventListener("click", () => setTile(tile+2));
+$("zoomOut").addEventListener("click", () => setTile(tile-2));
+$("fit").addEventListener("click", () => setTile(Math.floor((scroller.clientWidth-2)/DATA.dims.width)));
+$("center").addEventListener("click", () => { scroller.scrollTo({left: DATA.me.x*tile - scroller.clientWidth/2, top: DATA.me.y*tile - scroller.clientHeight/2, behavior:"smooth"}); });
+const retheme = () => { C = null; renderBase(); };
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
+new MutationObserver(retheme).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+document.fonts?.ready?.then(renderBase);
+
+if (DATA.floor) { $("pageTitle").textContent = `${DATA.floor} Spot Picker`; cv.setAttribute("aria-label", `Floor plan of ${DATA.floor}`); }
+// ---- boot: saving stays disabled until we know where spots are stored
+setDragSelect(dragSelect);
+setTile(Math.max(5, Math.floor((scroller.clientWidth-2)/DATA.dims.width)));
+scroller.scrollTo(DATA.me.x*tile - scroller.clientWidth/2, Math.max(0, DATA.me.y*tile - scroller.clientHeight/2));
+presets = readLocal(); renderPresets(); renderSel(); status("Connecting to the saved spots.");
+(async () => {
+  try { db = window.claude?.use ? await claude.use("db") : null; } catch { db = null; }
+  if (!db) { storeReady = true; updateButtons(); status("Shared store unavailable: spots stay in this browser."); return; }
+  const local = readLocal(); let first = true;
+  const timer = setTimeout(() => status("Still loading saved spots."), 10000);
+  db.collection("presets").onSnapshot(async (snap) => {
+    presets = {}; for (const d of snap.docs) presets[d.id] = {id: d.id, ...d.data()};
+    renderPresets();
+    if (snap.metadata.fromCache) return;
+    clearTimeout(timer);
+    if (!first) return;
+    first = false; storeReady = true; updateButtons(); status("");
+    // spots saved in this browser while the store was unreachable move into the store once
+    const orphans = Object.entries(local).filter(([id]) => !presets[docId(id)]);
+    try { for (const [id, p] of orphans) { const {id: _drop, ...doc} = p; await db.collection("presets").doc(docId(id)).set(doc); } writeLocal(null); if (orphans.length) status(`Moved ${orphans.length} spot${orphans.length>1?"s":""} from this browser into the shared store.`); }
+    catch (e) { status("Spots saved in this browser could not be moved to the shared store: " + (e?.code || e)); }
+  }, (e) => { clearTimeout(timer); storeReady = false; updateButtons(); status("Saved spots can't be loaded: " + e.code); });
+})();
+</script>

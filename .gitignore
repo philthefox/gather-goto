@@ -1,0 +1,6 @@
+shortcuts/build/
+picker/index.html
+*.tmp
+.DS_Store
+teams/mic-watch
+picker/data.json
