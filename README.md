@@ -138,3 +138,7 @@ also open the microphone and therefore trigger the move; `END_AFTER` bridges sho
   Version 0.66.2 is known to work.
 - Occupancy is judged by where connected avatars stand right now, not by desk assignment.
 - Only the current floor is handled.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
